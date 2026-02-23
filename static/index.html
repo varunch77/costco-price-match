@@ -796,14 +796,14 @@ function renderMarkdown(md) {
       if (inTable) { inTable = false; return '</tbody></table>' + line; }
       return line;
     })
-    .replace(/### (.+)/g, '<h3 style="margin:12px 0 6px;font-size:1em">$1</h3>')
-    .replace(/## (.+)/g, '<h2 style="margin:14px 0 8px;font-size:1.1em">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/### (.+)/g, (_, t) => `<h3 style="margin:12px 0 6px;font-size:1em">${esc(t)}</h3>`)
+    .replace(/## (.+)/g, (_, t) => `<h2 style="margin:14px 0 8px;font-size:1.1em">${esc(t)}</h2>`)
+    .replace(/\*\*(.+?)\*\*/g, (_, t) => `<strong>${esc(t)}</strong>`)
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
       const href = safeHref(url);
       return href ? `<a href="${esc(href)}" target="_blank" style="color:var(--blue);text-decoration:none">${esc(text)}</a>` : esc(text);
     })
-    .replace(/> (.+)/g, '<blockquote style="border-left:3px solid var(--blue);padding:8px 12px;margin:8px 0;background:#f8f9ff;border-radius:0 6px 6px 0;font-size:.88em">$1</blockquote>')
+    .replace(/> (.+)/g, (_, t) => `<blockquote style="border-left:3px solid var(--blue);padding:8px 12px;margin:8px 0;background:#f8f9ff;border-radius:0 6px 6px 0;font-size:.88em">${esc(t)}</blockquote>`)
     .replace(/\n/g, '<br>')
     .replace(/(<br>\s*){2,}/g, '<br>');
 }
