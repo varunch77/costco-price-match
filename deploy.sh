@@ -11,7 +11,7 @@ if [ -z "$NOTIFY_EMAIL" ] && [ -f "$(dirname "$0")/.env" ]; then
 fi
 NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
 
-echo "🚀 Deploying Costco Scanner to $REGION...\"
+echo "🚀 Deploying Costco Scanner to $REGION..."
 
 # Step 1: CDK deploy
 echo "📦 Running CDK deploy..."
