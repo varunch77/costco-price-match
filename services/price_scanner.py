@@ -47,7 +47,7 @@ def _scrape_costcoinsider_weekly() -> list:
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
-        content = soup.select_one(".entry-content")
+        content = soup.select_one(".entry-content") or soup.select_one("#content article") or soup.select_one("#content")
         if not content:
             return deals
 
@@ -153,11 +153,11 @@ def _scrape_costcoinsider_coupon_book() -> list:
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
-        # Find the latest coupon book post
+        # Find the latest coupon book post (skip generic "upcoming" page)
         coupon_url = None
         for a in soup.select("a[href*='costco']"):
             href = a.get("href", "")
-            if re.search(r'costco-.*coupon-book', href):
+            if re.search(r'costco-.*coupon-book', href) and "upcoming" not in href:
                 coupon_url = href if href.startswith("http") else "https://www.costcoinsider.com" + href
                 break
 
@@ -170,7 +170,7 @@ def _scrape_costcoinsider_coupon_book() -> list:
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
-        content = soup.select_one(".entry-content")
+        content = soup.select_one(".entry-content") or soup.select_one("#content article") or soup.select_one("#content")
         if not content:
             return deals
 
