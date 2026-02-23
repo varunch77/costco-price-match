@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(mes
 
 app = BedrockAgentCoreApp()
 
-REGION = os.environ.get("AWS_REGION", "us-west-2")
+REGION = os.environ.get("AWS_REGION", "us-east-1")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 SENDER = os.environ.get("NOTIFY_EMAIL", "")
 RECIPIENT = os.environ.get("NOTIFY_EMAIL", "")

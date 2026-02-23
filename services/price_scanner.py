@@ -293,7 +293,7 @@ CRITICAL RULES:
 - Do NOT put the savings amount in sale_price
 - Skip headers, dates, fine print, non-product items"""
 
-_bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-west-2"))
+_bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 
 def scan_price_drops(force_refresh: bool = False) -> list:

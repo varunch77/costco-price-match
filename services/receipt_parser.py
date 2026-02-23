@@ -3,7 +3,7 @@ import json
 import re
 import os
 
-_bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-west-2"))
+_bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 MODEL_LITE = "us.amazon.nova-2-lite-v1:0"
 MODEL_PREMIER = "us.amazon.nova-premier-v1:0"
 

@@ -8,7 +8,7 @@ import { AgentCoreStack } from '../lib/agentcore-stack';
 const app = new cdk.App();
 
 // Get context parameters
-const region = app.node.tryGetContext('region') || 'us-west-2';
+const region = app.node.tryGetContext('region') || 'us-east-1';
 const notifyEmail = app.node.tryGetContext('notifyEmail') || '';
 
 const env = { region, account: process.env.CDK_DEFAULT_ACCOUNT };
