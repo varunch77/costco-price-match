@@ -4,6 +4,11 @@
 set -e
 
 REGION=${AWS_DEFAULT_REGION:-us-east-1}
+
+# Load email from .env file if not already set
+if [ -z "$NOTIFY_EMAIL" ] && [ -f "$(dirname "$0")/.env" ]; then
+  export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+fi
 NOTIFY_EMAIL=${NOTIFY_EMAIL:-}
 
 echo "🚀 Deploying Costco Scanner to $REGION...\"
