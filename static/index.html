@@ -340,6 +340,18 @@ async function openPdf(receiptId) {
   }
 }
 
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+function safeHref(url) {
+  if (!url) return '';
+  try { const p = new URL(url, location.href); return ['http:','https:'].includes(p.protocol) ? url : ''; }
+  catch { return ''; }
+}
+
 function shortStore(s) {
   // "COSTCO WHOLESALE 50 Queen Elizabeth Blvd Etobicoke, ON M8Z 1M1" → "Etobicoke"
   // "Etobicoke #524" → "Etobicoke #524"  (already short)
@@ -439,7 +451,7 @@ async function loadReceipts() {
       const store = shortStore(rc.store || 'Unknown');
       html += `<div class="receipt-card" data-rid="${rc.receipt_id}" onclick="toggleReceipt(this)">
         <div class="receipt-header">
-          <span class="receipt-title">📋 ${rc.receipt_date || '?'} — ${store}</span>
+          <span class="receipt-title">📋 ${esc(rc.receipt_date || '?')} — ${esc(store)}</span>
           <div class="receipt-stats">
             <button class="btn icon-btn" onclick="event.stopPropagation();reparseReceipt('${rc.receipt_id}',this)" title="Reparse with Premier AI">🔄</button>
             <button class="btn icon-btn" onclick="event.stopPropagation();openPdf('${rc.receipt_id}')" title="View PDF">📎</button>
@@ -452,9 +464,9 @@ async function loadReceipts() {
           <table><tr><th>Item</th><th>Item #</th><th>Price</th><th>Qty</th><th></th></tr>`;
       items.forEach((i, idx) => {
         const tpd = i.tpd ? `<span style="background:#fff3cd;color:#856404;padding:1px 6px;border-radius:4px;font-size:.72em;font-weight:600;margin-left:4px">TPD</span>` : '';
-        const orig = i.original_price ? `<span style="text-decoration:line-through;color:var(--muted);font-size:.85em;margin-left:4px">$${i.original_price}</span>` : '';
-        html += `<tr class="item-row" onclick="selectRow(this)" data-rid="${rc.receipt_id}" data-idx="${idx}" data-item='${JSON.stringify(i).replace(/'/g,"&#39;")}'>
-          <td>${i.name}${tpd}</td><td class="item-num">${i.item_number||''}</td><td style="font-weight:600;color:var(--green)">$${i.price}${orig}</td><td>${i.qty||1}</td>
+        const orig = i.original_price ? `<span style="text-decoration:line-through;color:var(--muted);font-size:.85em;margin-left:4px">$${esc(i.original_price)}</span>` : '';
+        html += `<tr class="item-row" onclick="selectRow(this)" data-rid="${esc(rc.receipt_id)}" data-idx="${idx}" data-item='${JSON.stringify(i).replace(/'/g,"&#39;")}'>
+          <td>${esc(i.name)}${tpd}</td><td class="item-num">${esc(i.item_number||'')}</td><td style="font-weight:600;color:var(--green)">$${esc(i.price)}${orig}</td><td>${esc(i.qty||1)}</td>
           <td><button class="edit-btn" onclick="event.stopPropagation();editItem(this.parentElement.parentElement)" title="Edit">✏️</button></td></tr>`;
       });
       html += '</table></div></div>';
@@ -609,16 +621,17 @@ function renderDeals(deals) {
   if (!deals.length) { $('dealsArea').innerHTML = '<div class="empty">🔍 No deals. Click Scan to find some.</div>'; return; }
   let html = '<div class="deals-grid">';
   deals.forEach(d => {
-    const link = d.link || '';
-    const name = link ? `<a href="${link}" target="_blank">${d.item_name}</a>` : d.item_name;
-    const exp = d.promo_end ? `<span class="expiry">⏰ ${d.promo_end}</span>` : '';
-    const num = d.item_number ? `<span class="item-num">#${d.item_number}</span>` : '';
-    const src = d.source.replace('reddit.com/r/','r/').replace('.com','').replace('.ca','');
+    const href = safeHref(d.link);
+    const escapedName = esc(d.item_name);
+    const name = href ? `<a href="${esc(href)}" target="_blank">${escapedName}</a>` : escapedName;
+    const exp = d.promo_end ? `<span class="expiry">⏰ ${esc(d.promo_end)}</span>` : '';
+    const num = d.item_number ? `<span class="item-num">#${esc(d.item_number)}</span>` : '';
+    const src = esc(d.source.replace('reddit.com/r/','r/').replace('.com','').replace('.ca',''));
     html += `<div class="deal" style="position:relative">
-      <button class="deal-del" onclick="deleteDeal('${d.item_id}',this)" title="Remove deal">✕</button>
+      <button class="deal-del" onclick="deleteDeal('${esc(d.item_id)}',this)" title="Remove deal">✕</button>
       <div class="deal-name">${name}</div>
       <div class="deal-meta">
-        <span class="price">$${d.sale_price}</span>${num}<span class="source-tag">${src}</span>${exp}
+        <span class="price">$${esc(d.sale_price)}</span>${num}<span class="source-tag">${src}</span>${exp}
       </div>
     </div>`;
   });
@@ -764,17 +777,19 @@ function renderMarkdown(md) {
         if (!inTable) {
           inTable = true;
           return '<table style="width:100%;border-collapse:collapse;margin:4px 0"><thead><tr>' +
-            cells.map(c=>`<th style="padding:8px 10px;text-align:left;background:var(--bg);font-weight:600;font-size:.8em;text-transform:uppercase;color:var(--gray);border-bottom:2px solid var(--border)">${c.trim()}</th>`).join('') +
+            cells.map(c=>`<th style="padding:8px 10px;text-align:left;background:var(--bg);font-weight:600;font-size:.8em;text-transform:uppercase;color:var(--gray);border-bottom:2px solid var(--border)">${esc(c.trim())}</th>`).join('') +
             '</tr></thead><tbody>';
         }
         return '<tr>' + cells.map(c => {
           let v = c.trim();
           if (/^\[.+\]\(.+\)$/.test(v)) {
             const m = v.match(/^\[(.+)\]\((.+)\)$/);
-            v = `<a href="${m[2]}" target="_blank" style="color:var(--blue)">${m[1]}</a>`;
+            const href = safeHref(m[2]);
+            v = href ? `<a href="${esc(href)}" target="_blank" style="color:var(--blue)">${esc(m[1])}</a>` : esc(m[1]);
           } else if (/^[0-9a-f]{8}-[0-9a-f]{4}/.test(v)) {
             v = `<button onclick="openPdf('${v}')" style="background:none;border:none;color:var(--blue);cursor:pointer" title="View receipt">📎</button>`;
           } else if (/^\$[\d.]+$/.test(v)) v = `<span style="font-weight:600">${v}</span>`;
+          else v = esc(v);
           return `<td style="padding:6px 10px;border-bottom:1px solid var(--border)">${v}</td>`;
         }).join('') + '</tr>';
       }
@@ -784,7 +799,10 @@ function renderMarkdown(md) {
     .replace(/### (.+)/g, '<h3 style="margin:12px 0 6px;font-size:1em">$1</h3>')
     .replace(/## (.+)/g, '<h2 style="margin:14px 0 8px;font-size:1.1em">$1</h2>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue);text-decoration:none">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+      const href = safeHref(url);
+      return href ? `<a href="${esc(href)}" target="_blank" style="color:var(--blue);text-decoration:none">${esc(text)}</a>` : esc(text);
+    })
     .replace(/> (.+)/g, '<blockquote style="border-left:3px solid var(--blue);padding:8px 12px;margin:8px 0;background:#f8f9ff;border-radius:0 6px 6px 0;font-size:.88em">$1</blockquote>')
     .replace(/\n/g, '<br>')
     .replace(/(<br>\s*){2,}/g, '<br>');
