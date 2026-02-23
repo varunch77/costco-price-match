@@ -26,10 +26,10 @@ export class AmplifyStack extends cdk.Stack {
 
     const { commonStack } = props;
 
-    // Cognito User Pool with self-signup enabled
+    // Cognito User Pool with self-signup disabled (single-user, admin-created)
     this.userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'costco-scanner-users',
-      selfSignUpEnabled: true,
+      selfSignUpEnabled: false,
       signInAliases: { email: true },
       autoVerify: { email: true },
       passwordPolicy: {

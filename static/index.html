@@ -275,67 +275,17 @@ function showLoginUI() {
         <div id="auth-form">
           <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
           <input id="auth-pass" type="password" placeholder="Password" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-          <button onclick="doSignIn()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign In</button>
-          <p style="text-align:center;color:var(--muted);font-size:14px">No account? <a href="#" onclick="showSignUp();return false" style="color:var(--red)">Sign Up</a></p>
+          <button onclick="doSignIn()" class="btn btn-primary" style="width:100%;padding:12px">Sign In</button>
         </div>
       </div>
     </div>`;
   document.body.appendChild(d);
 }
 
-function showSignUp() {
-  document.getElementById('auth-subtitle').textContent = 'Create your account';
-  document.getElementById('auth-error').style.display = 'none';
-  document.getElementById('auth-form').innerHTML = `
-    <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-    <input id="auth-pass" type="password" placeholder="Password (8+ chars, upper, lower, digit)" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-    <button onclick="doSignUp()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign Up</button>
-    <p style="text-align:center;color:var(--muted);font-size:14px">Have an account? <a href="#" onclick="showSignIn();return false" style="color:var(--red)">Sign In</a></p>`;
-}
-
-function showSignIn() {
-  document.getElementById('auth-subtitle').textContent = 'Sign in to continue';
-  document.getElementById('auth-error').style.display = 'none';
-  document.getElementById('auth-form').innerHTML = `
-    <input id="auth-email" type="email" placeholder="Email" style="width:100%;padding:12px;margin-bottom:12px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-    <input id="auth-pass" type="password" placeholder="Password" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-    <button onclick="doSignIn()" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:12px">Sign In</button>
-    <p style="text-align:center;color:var(--muted);font-size:14px">No account? <a href="#" onclick="showSignUp();return false" style="color:var(--red)">Sign Up</a></p>`;
-}
-
-function showConfirm(email) {
-  document.getElementById('auth-subtitle').textContent = 'Check your email for a verification code';
-  document.getElementById('auth-error').style.display = 'none';
-  document.getElementById('auth-form').innerHTML = `
-    <input id="auth-code" type="text" placeholder="Verification code" style="width:100%;padding:12px;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box;font-size:15px">
-    <button onclick="doConfirm('${email}')" class="btn btn-primary" style="width:100%;padding:12px">Confirm</button>`;
-}
-
 function authError(msg) {
   const el = document.getElementById('auth-error');
   el.textContent = msg;
   el.style.display = 'block';
-}
-
-function doSignUp() {
-  const email = document.getElementById('auth-email').value;
-  const pass = document.getElementById('auth-pass').value;
-  if (!email || !pass) return authError('Email and password required');
-  const attrs = [new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email })];
-  userPool.signUp(email, pass, attrs, null, (err, result) => {
-    if (err) return authError(err.message);
-    showConfirm(email);
-  });
-}
-
-function doConfirm(email) {
-  const code = document.getElementById('auth-code').value;
-  const user = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
-  user.confirmRegistration(code, true, (err) => {
-    if (err) return authError(err.message);
-    document.getElementById('auth-subtitle').textContent = 'Account confirmed! Sign in now';
-    showSignIn();
-  });
 }
 
 function doSignIn() {
