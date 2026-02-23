@@ -793,7 +793,7 @@ function renderMarkdown(md) {
           return `<td style="padding:6px 10px;border-bottom:1px solid var(--border)">${v}</td>`;
         }).join('') + '</tr>';
       }
-      if (inTable) { inTable = false; return '</tbody></table>' + line; }
+      if (inTable) { inTable = false; return '</tbody></table>' + esc(line); }
       return esc(line);
     })
     .replace(/### (.+)/g, (_, t) => `<h3 style="margin:12px 0 6px;font-size:1em">${esc(t)}</h3>`)
