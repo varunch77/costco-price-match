@@ -21,103 +21,220 @@ def _parse_price(text):
     return m.group(1).replace(",", "") if m else ""
 
 
-def _scrape_rfd_hot_deals() -> list:
-    """Scrape RedFlagDeals Hot Deals forum for Costco deals."""
+def _scrape_costcoinsider_weekly() -> list:
+    """Scrape Costco Insider weekly deals page and parse deal images with Nova 2 Lite."""
     deals = []
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
     try:
-        resp = requests.get(
-            "https://forums.redflagdeals.com/hot-deals-f9/?c=5",
-            headers={"User-Agent": random.choice(USER_AGENTS)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        r = requests.get("https://www.costcoinsider.com/", headers=headers, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        # Noise filter - skip non-Costco items
-        skip_keywords = ['nissan', 'toyota', 'honda', 'hyundai', 'kia', 'bmw', 'mercedes',
-                         'scotiabank', 'amex', 'visa', 'mastercard', 'credit card',
-                         'wine glass', 'ajax', 'rcss', 'walmart', 'amazon', 'ebay',
-                         'little caesars', 'domino', 'skip the dishes', 'uber',
-                         'shell go', 'gas station', 'car wash', 'mortgage',
-                         'sponsored', 'topcashback', 'spc x skip']
+        # Find the latest weekly insider deals post
+        deals_url = None
+        for a in soup.select("a[href*='costco']"):
+            href = a.get("href", "")
+            if re.search(r'costco-.*weekly-insider-deals', href):
+                deals_url = href if href.startswith("http") else "https://www.costcoinsider.com" + href
+                break
 
-        for el in soup.find_all(attrs={"data-thread-id": True}):
-            for a in el.find_all("a"):
-                title = a.get_text(strip=True)
-                href = a.get("href", "")
-                if len(title) > 30 and "[Sponsored]" not in title and "Last Page" not in title:
-                    # Skip non-Costco noise
-                    if any(skip in title.lower() for skip in skip_keywords):
-                        break
+        if not deals_url:
+            print("  No weekly deals link found on costcoinsider.com")
+            return deals
 
-                    prices = re.findall(r'\$([\d,]+\.?\d*)', title)
-                    if prices:
-                        name_part = title.split("$")[0].strip().rstrip(" -–|")
-                        if len(name_part) > 5:
-                            sale = prices[0].replace(",", "")
-                            orig = ""
-                            reg_match = re.search(r'(?:reg\.?|was|orig)\s*\$?([\d,]+\.?\d*)', title, re.IGNORECASE)
-                            if reg_match:
-                                orig = reg_match.group(1).replace(",", "")
-                            elif len(prices) > 1:
-                                orig = prices[1].replace(",", "")
+        print(f"  Weekly deals URL: {deals_url}")
+        r = requests.get(deals_url, headers=headers, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
 
-                            # Build full URL
-                            link = href
-                            if link.startswith("/"):
-                                link = "https://forums.redflagdeals.com" + link
+        content = soup.select_one(".entry-content")
+        if not content:
+            return deals
 
-                            deals.append({
-                                "item_name": name_part[:100],
-                                "sale_price": sale,
-                                "original_price": orig,
-                                "promo_start": "",
-                                "promo_end": "",
-                                "source": "redflagdeals.com",
-                                "link": link,
-                            })
-                    break
+        # Parse text-format deals from lists (e.g. "Product Name $12.99 – $3.50 off = $9.49")
+        for li in content.select("li"):
+            text = li.get_text(strip=True)
+            prices = re.findall(r'\$([\d,]+\.?\d*)', text)
+            if len(prices) >= 1:
+                name_part = text.split("$")[0].strip().rstrip(" -–|:")
+                name_part = re.sub(r'^\d+\.\s*', '', name_part).strip()
+                if 5 < len(name_part) < 100:
+                    # Try to identify sale price vs original price
+                    sale = prices[-1].replace(",", "")  # last price is typically final
+                    orig = prices[0].replace(",", "") if len(prices) > 1 else ""
+                    # If "off" appears, the middle price is savings, last is final
+                    if "off" in text.lower() and len(prices) >= 3:
+                        orig = prices[0].replace(",", "")
+                        sale = prices[-1].replace(",", "")
+                    deals.append({
+                        "item_name": name_part[:100],
+                        "sale_price": sale,
+                        "original_price": orig,
+                        "promo_start": "",
+                        "promo_end": "",
+                        "source": "costcoinsider.com/weekly",
+                        "link": deals_url,
+                    })
+
+        # Parse deal images from gallery/content
+        images = content.select("img[src*='wp-content/uploads']")
+        # Also check for gallery images
+        for gallery in content.select(".gallery, .wp-block-gallery, .tiled-gallery"):
+            images.extend(gallery.select("img[src]"))
+        # Deduplicate by src
+        seen_srcs = set()
+        unique_images = []
+        for img in images:
+            src = img.get("src", "") or img.get("data-src", "")
+            if src and src not in seen_srcs and "logo" not in src.lower() and "icon" not in src.lower():
+                seen_srcs.add(src)
+                unique_images.append(src)
+
+        for img_url in unique_images[:20]:
+            try:
+                img_r = requests.get(img_url, headers=headers, timeout=15)
+                if img_r.status_code != 200:
+                    continue
+                content_type = img_r.headers.get("content-type", "")
+                if "image" not in content_type:
+                    continue
+                fmt = "jpeg"
+                if "png" in content_type:
+                    fmt = "png"
+                elif "webp" in content_type:
+                    fmt = "webp"
+
+                resp = _bedrock.converse(
+                    modelId="us.amazon.nova-2-lite-v1:0",
+                    messages=[{"role": "user", "content": [
+                        {"image": {"format": fmt, "source": {"bytes": img_r.content}}},
+                        {"text": COUPON_PROMPT},
+                    ]}],
+                    inferenceConfig={"maxTokens": 4096, "temperature": 0},
+                )
+                text = resp["output"]["message"]["content"][0]["text"]
+                if "```" in text:
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+
+                items = json.loads(text.strip())
+                for item in items:
+                    sale = item.get("sale_price", "")
+                    savings = item.get("savings", "")
+                    name = item.get("name", "").strip()
+                    item_num = item.get("item_number", "").strip()
+                    if name and (sale or savings):
+                        deals.append({
+                            "item_name": name[:100],
+                            "item_number": item_num,
+                            "sale_price": sale.replace(",", "") if sale else "",
+                            "original_price": "",
+                            "promo_start": "",
+                            "promo_end": "",
+                            "source": "costcoinsider.com/weekly",
+                            "link": deals_url,
+                        })
+                print(f"    Image parsed: {len(items)} items")
+            except Exception as e:
+                print(f"    Image parse failed: {e}")
+
     except Exception as e:
-        print(f"RFD Hot Deals failed: {e}")
+        print(f"Costco Insider weekly scrape failed: {e}")
     return deals
 
 
-def _scrape_rfd_clearance() -> list:
-    """Scrape RedFlagDeals .97 clearance thread."""
+def _scrape_costcoinsider_coupon_book() -> list:
+    """Scrape Costco Insider coupon book page and parse coupon images with Nova 2 Lite."""
     deals = []
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
     try:
-        resp = requests.get(
-            "https://forums.redflagdeals.com/east-gta-clearance-items-ending-97-general-thread-2146900/",
-            headers={"User-Agent": random.choice(USER_AGENTS)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        r = requests.get("https://www.costcoinsider.com/", headers=headers, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        for post in soup.select(".post_content"):
-            text = post.get_text()
-            lines = [l.strip() for l in text.split("\n") if l.strip()]
-            for line in lines:
-                if ".97" in line and "$" in line and len(line) < 200:
-                    # Match "product name was $X.97" or "product name $X.97"
-                    price_match = re.search(r'(.+?)\s*\$?([\d,]+\.97)', line)
-                    if price_match:
-                        name = price_match.group(1).strip()
-                        name = re.sub(r'^[-•*\d\s]+', '', name).strip(' -:')
-                        price = price_match.group(2).replace(",", "")
-                        skip_words = ['thread', 'post', 'forum', 'missing', 'updated', 'weekly',
-                                      'always', 'compiling', 'figured', 'instead', 'making']
-                        if 5 < len(name) < 100 and not any(w in name.lower() for w in skip_words):
-                            deals.append({
-                                "item_name": name,
-                                "sale_price": price,
-                                "original_price": "",
-                                "promo_start": "",
-                                "promo_end": "",
-                                "source": "redflagdeals.com/clearance",
-                            })
+        # Find the latest coupon book post
+        coupon_url = None
+        for a in soup.select("a[href*='costco']"):
+            href = a.get("href", "")
+            if re.search(r'costco-.*coupon-book', href):
+                coupon_url = href if href.startswith("http") else "https://www.costcoinsider.com" + href
+                break
+
+        if not coupon_url:
+            print("  No coupon book link found on costcoinsider.com")
+            return deals
+
+        print(f"  Coupon book URL: {coupon_url}")
+        r = requests.get(coupon_url, headers=headers, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        content = soup.select_one(".entry-content")
+        if not content:
+            return deals
+
+        # Find coupon page images
+        images = content.select("img[src*='wp-content/uploads']")
+        seen_srcs = set()
+        unique_images = []
+        for img in images:
+            src = img.get("src", "") or img.get("data-src", "")
+            if src and src not in seen_srcs and "logo" not in src.lower() and "icon" not in src.lower():
+                seen_srcs.add(src)
+                unique_images.append(src)
+
+        for idx, img_url in enumerate(unique_images[:20]):
+            try:
+                img_r = requests.get(img_url, headers=headers, timeout=15)
+                if img_r.status_code != 200:
+                    continue
+                content_type = img_r.headers.get("content-type", "")
+                if "image" not in content_type:
+                    continue
+                fmt = "jpeg"
+                if "png" in content_type:
+                    fmt = "png"
+                elif "webp" in content_type:
+                    fmt = "webp"
+
+                resp = _bedrock.converse(
+                    modelId="us.amazon.nova-2-lite-v1:0",
+                    messages=[{"role": "user", "content": [
+                        {"image": {"format": fmt, "source": {"bytes": img_r.content}}},
+                        {"text": COUPON_PROMPT},
+                    ]}],
+                    inferenceConfig={"maxTokens": 4096, "temperature": 0},
+                )
+                text = resp["output"]["message"]["content"][0]["text"]
+                if "```" in text:
+                    text = text.split("```")[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+
+                items = json.loads(text.strip())
+                for item in items:
+                    sale = item.get("sale_price", "")
+                    savings = item.get("savings", "")
+                    name = item.get("name", "").strip()
+                    item_num = item.get("item_number", "").strip()
+                    if name and (sale or savings):
+                        deals.append({
+                            "item_name": name[:100],
+                            "item_number": item_num,
+                            "sale_price": sale.replace(",", "") if sale else "",
+                            "original_price": "",
+                            "promo_start": "",
+                            "promo_end": "",
+                            "source": "costcoinsider.com/coupon-book",
+                            "link": coupon_url,
+                        })
+                print(f"    Page {idx + 1}: {len(items)} items")
+            except Exception as e:
+                print(f"    Page {idx + 1} parse failed: {e}")
+
     except Exception as e:
-        print(f"RFD clearance failed: {e}")
+        print(f"Costco Insider coupon book scrape failed: {e}")
     return deals
 
 
@@ -179,157 +296,6 @@ CRITICAL RULES:
 _bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-west-2"))
 
 
-def _scrape_coupon_book() -> list:
-    """Scrape Costco Canada coupon book from SmartCanucks and parse with Nova 2 Lite."""
-    deals = []
-    headers = {"User-Agent": random.choice(USER_AGENTS)}
-    try:
-        # Find latest warehouse offers flyer
-        r = requests.get("https://flyers.smartcanucks.ca/costco-canada", headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        flyer_url = None
-        for a in soup.select("a[href*='costco']"):
-            href = a.get("href", "")
-            if "warehouse" in href.lower() and "business" not in href.lower() and "qc" not in href.lower():
-                flyer_url = href if href.startswith("http") else "https://flyers.smartcanucks.ca" + href
-                break
-        # Fallback to any warehouse flyer if no non-QC found
-        if not flyer_url:
-            for a in soup.select("a[href*='costco']"):
-                href = a.get("href", "")
-                if "warehouse" in href.lower() and "business" not in href.lower():
-                    flyer_url = href if href.startswith("http") else "https://flyers.smartcanucks.ca" + href
-                    break
-
-        if not flyer_url:
-            print("  No Costco flyer found on SmartCanucks")
-            return deals
-
-        # Get flyer page to find image base URL
-        r = requests.get(flyer_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        img = soup.select_one("img[src*='uploads/pages']")
-        if not img:
-            return deals
-
-        base = re.sub(r"-\d+\.jpg$", "", img["src"])
-
-        # Download and parse each page with Nova 2 Lite
-        for i in range(1, 20):
-            url = f"{base}-{i}.jpg"
-            r = requests.get(url, headers=headers, timeout=15)
-            if r.status_code != 200:
-                break
-
-            try:
-                resp = _bedrock.converse(
-                    modelId="us.amazon.nova-2-lite-v1:0",
-                    messages=[{"role": "user", "content": [
-                        {"image": {"format": "jpeg", "source": {"bytes": r.content}}},
-                        {"text": COUPON_PROMPT},
-                    ]}],
-                    inferenceConfig={"maxTokens": 4096, "temperature": 0},
-                )
-                text = resp["output"]["message"]["content"][0]["text"]
-                if "```" in text:
-                    text = text.split("```")[1]
-                    if text.startswith("json"):
-                        text = text[4:]
-
-                items = json.loads(text.strip())
-                for item in items:
-                    sale = item.get("sale_price", "")
-                    savings = item.get("savings", "")
-                    name = item.get("name", "").strip()
-                    item_num = item.get("item_number", "").strip()
-                    if name and (sale or savings):
-                        deals.append({
-                            "item_name": name[:100],
-                            "item_number": item_num,
-                            "sale_price": sale.replace(",", "") if sale else "",
-                            "original_price": "",
-                            "promo_start": "",
-                            "promo_end": "",
-                            "source": "costco.ca/coupon-book",
-                            "link": flyer_url,
-                        })
-                print(f"    Page {i}: {len(items)} items")
-            except Exception as e:
-                print(f"    Page {i} parse failed: {e}")
-
-    except Exception as e:
-        print(f"Coupon book scrape failed: {e}")
-    return deals
-
-
-def _scrape_coco_site(base_url: str, source_name: str, link_pattern: str) -> list:
-    """Shared scraper for CocoWest/CocoEast (same format)."""
-    deals = []
-    headers = {"User-Agent": random.choice(USER_AGENTS)}
-    try:
-        r = requests.get(base_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        post_url = None
-        for a in soup.select(f'a[href*="{link_pattern}"]'):
-            href = a.get("href", "")
-            if len(a.get_text(strip=True)) > 20 and "/category/" not in href:
-                post_url = href
-                break
-        if not post_url:
-            return deals
-
-        r = requests.get(post_url, headers=headers, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
-        content = soup.select_one(".entry-content")
-        if not content:
-            return deals
-
-        for line in content.get_text().split("\n"):
-            line = line.strip()
-            m = re.match(r"^(\d{5,8})\s+(.+)", line)
-            if not m:
-                continue
-            item_num = m.group(1)
-            rest = m.group(2)
-            prices = re.findall(r"\$([\d,]+\.?\d*)", rest)
-            if not prices:
-                continue
-
-            sale_price = prices[-1].replace(",", "")
-            expiry_m = re.search(r"EXPIRES ON (\d{4}-\d{2}-\d{2})", rest)
-            name = re.sub(r"\(.*?\)", "", rest).strip()
-            name = re.sub(r"\$[\d,.]+.*", "", name).strip()
-
-            if name and len(name) > 3:
-                deals.append({
-                    "item_name": name[:100],
-                    "item_number": item_num,
-                    "sale_price": sale_price,
-                    "original_price": "",
-                    "promo_start": "",
-                    "promo_end": expiry_m.group(1) if expiry_m else "",
-                    "source": source_name,
-                    "link": post_url,
-                })
-    except Exception as e:
-        print(f"{source_name} scrape failed: {e}")
-    return deals
-
-
-def _scrape_cocowest() -> list:
-    return _scrape_coco_site("https://cocowest.ca/", "cocowest", "weekend-update-costco")
-
-
-def _scrape_cocoeast() -> list:
-    return _scrape_coco_site("https://cocoeast.ca/", "cocoeast", "costco")
-
-
 def scan_price_drops(force_refresh: bool = False) -> list:
     """Scan for Costco price drops from verified working sources."""
 
@@ -343,13 +309,9 @@ def scan_price_drops(force_refresh: bool = False) -> list:
 
     all_deals = []
     sources = [
-        ("RFD Hot Deals", _scrape_rfd_hot_deals),
-        ("RFD Clearance", _scrape_rfd_clearance),
+        ("Costco Insider Weekly", _scrape_costcoinsider_weekly),
+        ("Costco Insider Coupon Book", _scrape_costcoinsider_coupon_book),
         ("Reddit r/Costco", lambda: _scrape_reddit("Costco")),
-        ("Reddit r/CostcoCanada", lambda: _scrape_reddit("CostcoCanada")),
-        ("Costco Coupon Book", _scrape_coupon_book),
-        ("CocoWest In-Store", _scrape_cocowest),
-        ("CocoEast In-Store", _scrape_cocoeast),
     ]
 
     for name, scraper in sources:

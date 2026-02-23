@@ -194,7 +194,7 @@ Present as TWO MARKDOWN TABLES, sorted by Date (newest first). Use EXACTLY this 
 
 ℹ️ These items already had a Temporary Price Drop (TPD) applied at checkout.
 
-Source column: format as markdown link using deal_link, e.g. [cocowest](https://cocowest.ca/...)
+Source column: format as markdown link using deal_link, e.g. [costcoinsider](https://costcoinsider.com/...)
 Potential Savings = sum of Savings column in Table 1. Already Saved = sum of TPD Savings column in Table 2 (original_price - price for each row).
 All dollar amounts MUST include the $ sign (e.g. $24.99, NOT 24.99).
 Do NOT include an Action column. Do NOT deviate from the format above.
@@ -215,12 +215,9 @@ def _build_receipt_lookup() -> dict:
 
 
 _SOURCE_URLS = {
-    "cocowest": "https://cocowest.ca", "cocoeast": "https://cocoeast.ca",
-    "coupon_book": "https://www.costco.ca/coupons.html",
-    "rfd_hot_deals": "https://forums.redflagdeals.com/hot-deals-f9/",
-    "rfd_clearance": "https://forums.redflagdeals.com/costco-clearance-f729/",
+    "costcoinsider.com/weekly": "https://www.costcoinsider.com",
+    "costcoinsider.com/coupon-book": "https://www.costcoinsider.com",
     "reddit_costco": "https://reddit.com/r/Costco",
-    "reddit_costcocanada": "https://reddit.com/r/CostcoCanada",
 }
 
 
