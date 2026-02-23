@@ -150,26 +150,14 @@ tr.item-row.selected{background:#dbeafe;border-left:3px solid var(--blue)}
 </div>
 
 <div class="card">
-  <div class="card-header"><h2>🤖 AI Price Match</h2></div>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
-    <div class="multi-select" id="receiptMultiSelect">
-      <button class="multi-select-btn" onclick="toggleMultiSelect()" type="button">
-        <span id="msLabel">All receipts</span><span class="arrow">▼</span>
-      </button>
-      <div class="multi-select-dd" id="msDropdown"></div>
+  <div class="card-header">
+    <h2>🧾 Receipts</h2>
+    <div class="btn-row">
+      <button class="btn btn-ghost icon-btn" onclick="loadReceipts()" title="Refresh list">↻</button>
+      <button class="btn btn-danger" onclick="clearReceipts()" title="Delete all receipts">🗑️</button>
     </div>
-    <button class="btn btn-primary" onclick="runAnalysis()">🧠 Analyze</button>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:.82em">
-    <label style="color:var(--gray)">Deals from:</label>
-    <input type="date" id="analysisDateFrom" class="date-input">
-    <label style="color:var(--gray)">to:</label>
-    <input type="date" id="analysisDateTo" class="date-input">
-    <label style="color:var(--gray);margin-left:8px">Sources:</label>
-    <div id="analysisSources" class="source-checks"></div>
-  </div>
-  <div id="analysisStatus"></div>
-  <div id="analysis"></div>
+  <div id="receiptsArea"></div>
 </div>
 
 <div class="card">
@@ -196,14 +184,26 @@ tr.item-row.selected{background:#dbeafe;border-left:3px solid var(--blue)}
 </div>
 
 <div class="card">
-  <div class="card-header">
-    <h2>🧾 Receipts</h2>
-    <div class="btn-row">
-      <button class="btn btn-ghost icon-btn" onclick="loadReceipts()" title="Refresh list">↻</button>
-      <button class="btn btn-danger" onclick="clearReceipts()" title="Delete all receipts">🗑️</button>
+  <div class="card-header"><h2>🤖 AI Price Match</h2></div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <div class="multi-select" id="receiptMultiSelect">
+      <button class="multi-select-btn" onclick="toggleMultiSelect()" type="button">
+        <span id="msLabel">All receipts</span><span class="arrow">▼</span>
+      </button>
+      <div class="multi-select-dd" id="msDropdown"></div>
     </div>
+    <button class="btn btn-primary" onclick="runAnalysis()">🧠 Analyze</button>
   </div>
-  <div id="receiptsArea"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:.82em">
+    <label style="color:var(--gray)">Deals from:</label>
+    <input type="date" id="analysisDateFrom" class="date-input">
+    <label style="color:var(--gray)">to:</label>
+    <input type="date" id="analysisDateTo" class="date-input">
+    <label style="color:var(--gray);margin-left:8px">Sources:</label>
+    <div id="analysisSources" class="source-checks"></div>
+  </div>
+  <div id="analysisStatus"></div>
+  <div id="analysis"></div>
 </div>
 
 </div>
@@ -794,7 +794,7 @@ function renderMarkdown(md) {
         }).join('') + '</tr>';
       }
       if (inTable) { inTable = false; return '</tbody></table>' + line; }
-      return line;
+      return esc(line);
     })
     .replace(/### (.+)/g, (_, t) => `<h3 style="margin:12px 0 6px;font-size:1em">${esc(t)}</h3>`)
     .replace(/## (.+)/g, (_, t) => `<h2 style="margin:14px 0 8px;font-size:1.1em">${esc(t)}</h2>`)
