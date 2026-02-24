@@ -141,7 +141,7 @@ tr.item-row.selected{background:#dbeafe;border-left:3px solid var(--blue)}
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
     <h2 style="font-size:1em;margin:0;white-space:nowrap">📷 Upload Receipts</h2>
     <div class="upload-zone" onclick="document.getElementById('pdfFile').click()" style="padding:8px 16px;border-width:1px;display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
-      <input type="file" id="pdfFile" accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,image/*" capture="environment" multiple>
+      <input type="file" id="pdfFile" accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,image/*" multiple>
       <span id="uploadLabel" style="font-size:.85em">📄 Choose files, take photo, or drag & drop</span>
     </div>
     <button class="btn btn-primary" onclick="uploadReceipts()">📤 Upload & Parse</button>
