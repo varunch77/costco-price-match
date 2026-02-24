@@ -48,23 +48,40 @@ Opens on `http://localhost:8000`. Auto-fetches DynamoDB/S3 resource names from t
 ```bash
 cd infra && npm install && cd ..
 
-# Deploy Lambda, Amplify, API Gateway, Cognito, DynamoDB, S3
+# Deploy Lambda, Amplify, API Gateway, Cognito, DynamoDB, S3, weekly agent
 NOTIFY_EMAIL=your-email@example.com ./deploy.sh
-
-# Deploy weekly agent (SES verification email sent on first deploy)
-cd infra && npx cdk deploy CostcoScannerAgentCore \
-  -c region=us-west-2 \
-  -c notifyEmail=your-email@example.com \
-  --require-approval never
 ```
+
+> **Note:** On first deploy, SES will send a verification email to your `NOTIFY_EMAIL` address. You must click the link before the weekly report can be delivered.
+
+**Create your login**
+
+Self-signup is disabled. After deploying, create your account via the AWS CLI (User Pool ID is in the deploy output):
+
+```bash
+aws cognito-idp admin-create-user \
+  --user-pool-id <UserPoolId> \
+  --username your-email@example.com \
+  --user-attributes Name=email,Value=your-email@example.com Name=email_verified,Value=true \
+  --temporary-password "TempPass1!" \
+  --message-action SUPPRESS
+
+aws cognito-idp admin-set-user-password \
+  --user-pool-id <UserPoolId> \
+  --username your-email@example.com \
+  --password "YourPassword1!" \
+  --permanent
+```
+
+Password requirements: min 8 characters, uppercase, lowercase, digit, and symbol.
 
 ## Cleanup
 
 ```bash
 cd infra
-npx cdk destroy CostcoScannerAgentCore -c region=us-west-2 -c notifyEmail=your-email@example.com
-npx cdk destroy CostcoScannerAmplify -c region=us-west-2
-npx cdk destroy CostcoScannerCommon -c region=us-west-2
+npx cdk destroy CostcoScannerAgentCore -c notifyEmail=your-email@example.com
+npx cdk destroy CostcoScannerAmplify
+npx cdk destroy CostcoScannerCommon
 ```
 
 ## Cost
