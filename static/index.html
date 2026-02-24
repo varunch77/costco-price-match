@@ -139,10 +139,10 @@ tr.item-row.selected{background:#dbeafe;border-left:3px solid var(--blue)}
 
 <div class="card" style="padding:14px 20px">
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <h2 style="font-size:1em;margin:0;white-space:nowrap">📄 Upload Receipts</h2>
+    <h2 style="font-size:1em;margin:0;white-space:nowrap">📷 Upload Receipts</h2>
     <div class="upload-zone" onclick="document.getElementById('pdfFile').click()" style="padding:8px 16px;border-width:1px;display:flex;align-items:center;gap:8px;flex:1;min-width:200px">
-      <input type="file" id="pdfFile" accept=".pdf" multiple>
-      <span id="uploadLabel" style="font-size:.85em">📄 Choose PDFs or drag & drop</span>
+      <input type="file" id="pdfFile" accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,image/*" capture="environment" multiple>
+      <span id="uploadLabel" style="font-size:.85em">📄 Choose files, take photo, or drag & drop</span>
     </div>
     <button class="btn btn-primary" onclick="uploadReceipts()">📤 Upload & Parse</button>
   </div>
@@ -387,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function showFileList() {
   const files = $('pdfFile').files;
-  if (!files.length) { $('uploadFileList').innerHTML = ''; $('uploadLabel').textContent = '📄 Choose PDFs or drag & drop'; return; }
+  if (!files.length) { $('uploadFileList').innerHTML = ''; $('uploadLabel').textContent = '📄 Choose files, take photo, or drag & drop'; return; }
   $('uploadLabel').textContent = `${files.length} file${files.length>1?'s':''} selected`;
   $('uploadFileList').innerHTML = [...files].map((f,i) =>
     `<div class="upload-file" id="uf${i}"><span class="fname">📄 ${f.name}</span><span class="fsize">${(f.size/1024).toFixed(0)} KB</span><div class="fprog"><div class="fprog-bar" id="ufp${i}" style="width:0%"></div></div><span class="fstatus" id="ufs${i}">Pending</span></div>`
@@ -397,7 +397,7 @@ function showFileList() {
 // Upload multiple files sequentially
 async function uploadReceipts() {
   const files = $('pdfFile').files;
-  if (!files.length) return alert('Select PDF files first');
+  if (!files.length) return alert('Select receipt files first');
   let ok = 0;
   for (let i = 0; i < files.length; i++) {
     const el = document.getElementById('uf'+i);

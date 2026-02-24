@@ -16,25 +16,27 @@ def root():
     return FileResponse("static/index.html")
 
 
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".heic", ".heif"}
+
 @app.post("/api/upload")
 async def upload_receipt(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(400, "Only PDF files are supported")
-    pdf_bytes = await file.read()
-    if len(pdf_bytes) > 10 * 1024 * 1024:
+    ext = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+    file_bytes = await file.read()
+    if len(file_bytes) > 10 * 1024 * 1024:
         raise HTTPException(400, "File too large (max 10MB)")
     try:
-        parsed = receipt_parser.parse_receipt_pdf(pdf_bytes)
+        parsed = receipt_parser.parse_receipt(file_bytes, ext)
     except Exception as e:
         raise HTTPException(500, f"Failed to parse receipt: {e}")
     receipt = db.put_receipt(
         items=parsed.get("items", []),
         receipt_date=parsed.get("receipt_date", ""),
         store=parsed.get("store", ""),
-        pdf_hash=hashlib.md5(pdf_bytes).hexdigest(),
+        pdf_hash=hashlib.md5(file_bytes).hexdigest(),
     )
-    # Store PDF in S3 for potential reparse
-    db.upload_pdf(receipt["receipt_id"], pdf_bytes)
+    db.upload_pdf(receipt["receipt_id"], file_bytes)
     return {"receipt": receipt, "parsed_items": len(receipt["items"])}
 
 

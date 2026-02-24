@@ -207,17 +207,57 @@ def _post_process(items: list) -> list:
     return merged
 
 
-def parse_receipt_pdf(pdf_bytes: bytes, model: str = "lite") -> dict:
-    """Parse receipt PDF. Lite=fast single-call, Premier=two-call image approach."""
-    if model == "premier":
-        result = _parse_premier(pdf_bytes)
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".heic", ".heif"}
+
+def _convert_to_png(image_bytes: bytes, ext: str) -> bytes:
+    """Convert HEIC/HEIF or other image formats to PNG bytes for Bedrock."""
+    from PIL import Image
+    import io
+    if ext in (".heic", ".heif"):
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+    img = Image.open(io.BytesIO(image_bytes))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _parse_image(image_bytes: bytes, ext: str, model: str = "lite") -> dict:
+    """Parse a receipt image (PNG/JPG/HEIC) using Bedrock."""
+    if ext in (".heic", ".heif"):
+        png_bytes = _convert_to_png(image_bytes, ext)
+        img_format = "png"
+        img_data = png_bytes
+    elif ext in (".jpg", ".jpeg"):
+        img_format = "jpeg"
+        img_data = image_bytes
+    else:
+        img_format = "png"
+        img_data = image_bytes
+
+    img_content = [{"image": {"format": img_format, "source": {"bytes": img_data}}}]
+    model_id = MODEL_PREMIER if model == "premier" else MODEL_LITE
+    text = _call_model(img_content, EXTRACTION_PROMPT, model_id)
+    if "```" in text:
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text.strip())
+
+
+def parse_receipt(file_bytes: bytes, ext: str = ".pdf", model: str = "lite") -> dict:
+    """Parse receipt from PDF or image. ext should include the dot (e.g. '.pdf', '.png')."""
+    if ext in IMAGE_EXTENSIONS:
+        result = _parse_image(file_bytes, ext, model)
+    elif model == "premier":
+        result = _parse_premier(file_bytes)
     else:
         response = _bedrock.converse(
             modelId=MODEL_LITE,
             messages=[{
                 "role": "user",
                 "content": [
-                    {"document": {"format": "pdf", "name": "receipt", "source": {"bytes": pdf_bytes}}},
+                    {"document": {"format": "pdf", "name": "receipt", "source": {"bytes": file_bytes}}},
                     {"text": EXTRACTION_PROMPT},
                 ],
             }],
@@ -232,3 +272,8 @@ def parse_receipt_pdf(pdf_bytes: bytes, model: str = "lite") -> dict:
 
     result["items"] = _post_process(result.get("items", []))
     return result
+
+
+# Backward compat alias
+def parse_receipt_pdf(pdf_bytes: bytes, model: str = "lite") -> dict:
+    return parse_receipt(pdf_bytes, ".pdf", model)

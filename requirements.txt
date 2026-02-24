@@ -8,5 +8,6 @@ requests
 playwright
 playwright-stealth
 pillow
+pillow-heif
 PyMuPDF
 bedrock-agentcore
