@@ -1,4 +1,4 @@
-"""AgentCore Runtime entry point — weekly Costco price match scan + SES HTML report."""
+"""AgentCore Runtime entry point — weekly Costco price match scan + SNS report."""
 
 import logging
 import os
@@ -16,11 +16,10 @@ app = BedrockAgentCoreApp()
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
-SENDER = os.environ.get("NOTIFY_EMAIL", "")
-RECIPIENT = os.environ.get("NOTIFY_EMAIL", "")
+SNS_TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN", "")
 
 s3 = boto3.client("s3", region_name=REGION)
-ses = boto3.client("ses", region_name=REGION)
+sns = boto3.client("sns", region_name=REGION)
 
 
 def _presign_links(text: str) -> str:
@@ -35,45 +34,6 @@ def _presign_links(text: str) -> str:
     return re.sub(r"\]\(/api/receipt/([^/]+)/pdf\)", _replace, text)
 
 
-def _md_to_html(md: str) -> str:
-    lines = md.split("\n")
-    html_lines = []
-    in_table = False
-    for line in lines:
-        stripped = line.strip()
-        if re.match(r"^\|[-| ]+\|$", stripped):
-            continue
-        if stripped.startswith("|") and stripped.endswith("|"):
-            cells = [c.strip() for c in stripped.strip("|").split("|")]
-            if not in_table:
-                in_table = True
-                html_lines.append('<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:14px">')
-                html_lines.append("<tr>" + "".join(f'<th style="border:1px solid #ddd;padding:8px;background:#f4f4f4;text-align:left">{c}</th>' for c in cells) + "</tr>")
-            else:
-                row_cells = []
-                for c in cells:
-                    c = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', c)
-                    row_cells.append(f'<td style="border:1px solid #ddd;padding:8px">{c}</td>')
-                html_lines.append("<tr>" + "".join(row_cells) + "</tr>")
-        else:
-            if in_table:
-                html_lines.append("</table><br>")
-                in_table = False
-            if stripped.startswith(">"):
-                stripped = stripped.lstrip("> ")
-            # Convert markdown headers
-            if stripped.startswith("### "):
-                html_lines.append(f"<h3 style='font-family:Arial,sans-serif;margin:16px 0 8px'>{stripped[4:]}</h3>")
-            elif stripped.startswith("## "):
-                html_lines.append(f"<h2 style='font-family:Arial,sans-serif;margin:20px 0 8px'>{stripped[3:]}</h2>")
-            else:
-                converted = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", stripped)
-                if converted:
-                    html_lines.append(f"<p style='font-family:Arial,sans-serif;font-size:14px;margin:4px 0'>{converted}</p>")
-    if in_table:
-        html_lines.append("</table>")
-    return "\n".join(html_lines)
-
 
 @app.entrypoint
 async def invoke(payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -86,17 +46,14 @@ async def invoke(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         logging.info(f"Analysis complete ({len(report)} chars)")
 
         email_report = _presign_links(report)
-        html_body = _md_to_html(email_report)
+        logging.info(f"Report content:\n{email_report}")
 
-        ses.send_email(
-            Source=SENDER,
-            Destination={"ToAddresses": [RECIPIENT]},
-            Message={
-                "Subject": {"Data": "Costco Weekly Price Match Report"},
-                "Body": {"Html": {"Data": html_body}},
-            },
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject="Costco Weekly Price Match Report",
+            Message=email_report,
         )
-        logging.info("SES HTML report sent")
+        logging.info("SNS report published")
         return {"status": "success", "deals_scanned": len(deals), "report": report}
     except Exception as e:
         logging.error(f"Error: {e}", exc_info=True)

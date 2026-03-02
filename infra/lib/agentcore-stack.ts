@@ -2,7 +2,8 @@ import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 import * as agentcore from '@aws-cdk/aws-bedrock-agentcore-alpha';
-import * as ses from 'aws-cdk-lib/aws-ses';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import { CommonStack } from './common-stack';
 
@@ -35,7 +36,7 @@ export class AgentCoreStack extends cdk.Stack {
               resources: ['arn:aws:bedrock:*::foundation-model/*', `arn:aws:bedrock:*:${this.account}:inference-profile/*`],
             }),
             new iam.PolicyStatement({
-              actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+              actions: ['sns:Publish'],
               resources: ['*'],
             }),
           ],
@@ -43,9 +44,14 @@ export class AgentCoreStack extends cdk.Stack {
       },
     });
 
+    const topic = new sns.Topic(this, 'ReportTopic', {
+      displayName: 'Costco Price Match Reports',
+    });
+    topic.addSubscription(new snsSubscriptions.EmailSubscription(notifyEmail));
+
     const runtime = new agentcore.Runtime(this, 'CostcoScannerRuntime', {
       runtimeName: 'costco_scanner',
-      description: 'Weekly Costco price match scan + SES email report',
+      description: 'Weekly Costco price match scan + SNS report',
       agentRuntimeArtifact: agentcore.AgentRuntimeArtifact.fromAsset('../', {
         file: 'agentcore.Dockerfile',
       }),
@@ -54,13 +60,10 @@ export class AgentCoreStack extends cdk.Stack {
         DYNAMODB_RECEIPTS_TABLE: commonStack.receiptsTable.tableName,
         DYNAMODB_PRICE_DROPS_TABLE: commonStack.priceDropsTable.tableName,
         S3_BUCKET: commonStack.receiptsBucket.bucketName,
-        NOTIFY_EMAIL: notifyEmail,
+        SNS_TOPIC_ARN: topic.topicArn,
         AWS_DEFAULT_REGION: this.region,
       },
     });
-
-    // SES identity for weekly email (sends verification on first deploy)
-    new ses.CfnEmailIdentity(this, 'SesIdentity', { emailIdentity: notifyEmail });
 
     new cdk.CfnOutput(this, 'RuntimeId', {
       value: runtime.agentRuntimeId,
